@@ -6,11 +6,11 @@
 #include <UniversalTelegramBot.h>
 
 // WiFi credentials
-char ssid[] = "Vodafone-A44066214";
-char password[] = "bkcRYhattEy2HfgA";
+char ssid[] = "xxxxxxxxx";
+char password[] = "xxxxxxxx";
 
 // Telegram BOT credentials
-#define BOT_TOKEN "5098952632:AAGkJ3xONKbHnyk-jdwnj7XjJzqU6GBY09E"
+#define BOT_TOKEN "xxxxxxxxxxx:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 const unsigned long BOT_MTBS = 1000; // mean time between scan messages
 
 //initializing settings
@@ -18,55 +18,73 @@ WiFiClientSecure secured_client;
 UniversalTelegramBot bot(BOT_TOKEN, secured_client);
 unsigned long bot_lasttime; // last time messages' scan has been done
 
-//defining pin and relay
+//defining pin
+#define ESP_INTR_FLAG_DEFAULT 0
 #define BUTTONPIN 0
+
 int buttonPress;
 int ledStatus = 0;
 const int ledPin = 13;
 
 // hmacKey
-uint8_t hmacKey[] = {0x62, 0x6b, 0x63, 0x52, 0x59, 0x68, 0x61, 0x74, 0x74, 0x45, 0x79, 0x32, 0x48, 0x66, 0x67, 0x41};
+uint8_t hmacKey[] = {0x35, 0x35, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x24};
 
 //global variables
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
-TOTP totp = TOTP(hmacKey, 16);
+TOTP totp = TOTP(hmacKey, 12);
 String totpCode = String("");
 String mittelabOTP = ("");
 String newCode = String(totp.getCode(timeClient.getEpochTime()));
+String nextTextMessage;
+int Status;
 
-void handleResponses(int numNewResponses){
-     // update the time 
+String nextText(){
+  for (int k= 0; k < 1; k++)
+  {
+  String chat_id = bot.messages[k].chat_id;
+  nextTextMessage = bot.messages[k].text;
+  }
+  return nextTextMessage;
+  delay(1000);
+}
+
+void sendMessage(String message){
+    for (int k= 0; k < 1; k++)
+  {
+  String chat_id = bot.messages[k].chat_id;
+  bot.sendMessage(chat_id, message, "");
+  }
+}
+
+String generateOTP(){
+  // update the time 
   timeClient.update();
 
   // generate the TOTP code and, if different from the previous one, print to screen
-  
-  if(totpCode!= newCode) {
+    if(totpCode!= newCode) {
 
     totpCode = String(newCode);
     Serial.print("TOTP code: ");
     Serial.println(newCode);
+    return totpCode;
+  }
+}
 
-  for (int j= 0; j < 3; j++)
-  {
-    String chat_id = bot.messages[j].chat_id;
-    mittelabOTP = bot.messages[j].text;
+void handleResponses(int numNewResponses){
+    
+    String password = nextText();
 
-    String from_name = bot.messages[j].from_name;
-      if (from_name == "")
-        from_name = "Guest";
-
-    if(newCode == mittelabOTP){
-        bot.sendMessage(chat_id, "Access Granted", "");
+    if(password == mittelabOTP){
+        sendMessage("Access Granted");
     } else{
-        bot.sendMessage(chat_id, "Incorrect OTP", "");
+        sendMessage("Incorrect OTP");
     }
 
-  }
+    int Status = 3;
 
 }
 
-}
 
 void handleNewMessages(int numNewMessages)
 {
@@ -76,16 +94,22 @@ void handleNewMessages(int numNewMessages)
     if (bot.messages[i].type == "callback_query")
     {
         if (bot.messages[i].text == "Press the open button"){
+
         buttonPress = digitalRead(BUTTONPIN);
-        printf("buttonStatus=%d", buttonPress);
-        bot.sendMessage( bot.messages[i].chat_id,"button pressed, now enter OTP","");
+
+        if(buttonPress == 1){
+          bot.sendMessage( bot.messages[i].chat_id,"button has been pressed, noe enter OTP","");
+        }else{
+          bot.sendMessage( bot.messages[i].chat_id,"waiting for button to be pressed","");
+        }
         };
+        Status = 1;
     }
     else
     {
       String chat_id = bot.messages[i].chat_id;
       String text = bot.messages[i].text;
-
+      Status = 1;
       String from_name = bot.messages[i].from_name;
       if (from_name == "")
         from_name = "Guest";
@@ -94,6 +118,7 @@ void handleNewMessages(int numNewMessages)
       {
         String keyboardJson = "[[{ \"text\" : \"Go to Access Registration Page\", \"url\" : \"https://otp.mittelab.org\" }],[{ \"text\" : \"Open Lab\", \"callback_data\" : \"Press the open button\" }]]";
         bot.sendMessageWithInlineKeyboard(chat_id, "Choose from one of the following options", "", keyboardJson);
+        Status = 0;
       } 
 
     }
@@ -130,19 +155,30 @@ void setup(){
   }
   Serial.println(now);
 }
-}
-void loop(){
-    if (millis() - bot_lasttime > BOT_MTBS)
-  {
-    int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-    int numNewResponses = numNewMessages;
 
-    while (numNewMessages)
+}
+
+
+void loop(){
+
+  if (millis() - bot_lasttime > BOT_MTBS){
+  
+  mittelabOTP = generateOTP();
+  
+  int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+
+  int numNewResponses = bot.getUpdates(bot.last_message_received + 1);
+
+  while (numNewMessages)
     {
       handleNewMessages(numNewMessages);
-      handleResponses(numNewResponses);
-      
       numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    }
+
+  while (numNewResponses)
+    {
+      handleResponses(numNewResponses);
+      numNewResponses = bot.getUpdates(bot.last_message_received + 1);
     }
 
     bot_lasttime = millis();
